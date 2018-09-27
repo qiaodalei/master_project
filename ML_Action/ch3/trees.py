@@ -1,4 +1,6 @@
 from math import log
+import operator
+import treePlotter
 
 def calcShannonEnt(dataSet):
     numEntries = len(dataSet)
@@ -18,19 +20,98 @@ def createDataSet():
     dataSet = [[1,1,'y'], 
     [1,0,'n'],
     [1,1,'y'],
-    [0,1,'n'],
+    [0,1,'n'], 
     [0,1,'n']]
 
     labels = ['no surfacing', 'flippers']
     return dataSet, labels
 
+def splitDataSet(dataSet, axis, value):
+    retDataSet = []
+    for featVec in dataSet:
+        if featVec[axis] == value:
+            reducedFeatVec = featVec[:axis]
+            reducedFeatVec.extend(featVec[axis+1:])
+            retDataSet.append(reducedFeatVec)
+    return retDataSet
+
+def chooseBestFeatureToSplit(dataSet):
+    numFeatures = len(dataSet) - 1
+    baseEntropy = calcShannonEnt(dataSet)
+    baseInfoGain = 0.0 
+    bestFeature = -1
+    for i in range(numFeatures):
+        featList = [example[i] for example in dataSet]
+        uniqueVals = set(featList)
+        newEntropy = 0.0
+        for value in uniqueVals:
+            subDataSet = splitDataSet(dataSet, i, value)
+            prob = len(subDataSet)/float(len(dataSet))
+            newEntropy += prob * calcShannonEnt(subDataSet)
+        infoGain = baseEntropy - newEntropy
+        if (infoGain > baseInfoGain):
+            baseInfoGain = infoGain
+            bestFeature = i
+        return bestFeature
+
+def majorityCnt(classList):
+    classCount = {}
+    for vote in classList:
+        if vote not in classCount.keys():
+            classCount[vote] = 0
+        classCount[vote] += 1
+    sortedClassCount = sorted(classCount.items(), key = operator.itemgetter(1), reverse = True)
+    return sortedClassCount[0][0]
+
+def createTree(dataSet, labels):
+    classList = [example[-1] for example in dataSet]
+    if classList.count(classList[0]) == len(classList):
+        return classList[0]
+    if len(dataSet[0]) == 1:
+        return majorityCnt(classList)
+    bestFeat = chooseBestFeatureToSplit(dataSet)
+    bestFeatLabel = labels[bestFeat]
+    myTree = {bestFeatLabel:{}}
+    del(labels[bestFeat])
+    featValues = [example[bestFeat] for example in dataSet]
+    uniqueVals = set(featValues)
+    for value in uniqueVals:
+        subLabels = labels[:]
+        myTree[bestFeatLabel][value] = createTree(splitDataSet(dataSet, bestFeat, value), subLabels)
+    return myTree
+
+def classify(inputTree, featLabels, testVec):
+    firstStr = list(inputTree)[0]
+    secondDict = inputTree[firstStr]
+    featIndex = featLabels.index(firstStr)
+    key = testVec[featIndex]
+    valueOfFeat = secondDict[key]
+    if isinstance(valueOfFeat, dict):
+        classLabel = classify(valueOfFeat, featLabels, testVec)
+    else: classLabel = valueOfFeat
+    return classLabel
+
+def storeTree(inputTree, filename):
+    import pickle
+    fw = open(filename, 'wb')
+    pickle.dump(inputTree, fw)
+    fw.close()
+
+def grabTree(filename):
+    import pickle
+    fr = open(filename, 'rb')
+    return pickle.load(fr)
 
 if __name__ == '__main__':
     myDat, labels = createDataSet()
-    shannonEnt = calcShannonEnt(myDat)
-    print(myDat, labels, shannonEnt)
-
-
-
-
-
+    #resultFeature = chooseBestFeatureToSplit(myDat)
+    #shannonEnt = calcShannonEnt(myDat)
+    #print(myDat, labels, shannonEnt)
+    #print(resultFeature)
+    myTree = treePlotter.retrieveTree(0)
+    storeTree(myTree, 'classifierStorage.txt')
+    myTree1 = grabTree('classifierStorage.txt')
+    print(myTree1)
+"""     result = classify(myTree, labels, [1, 1])
+    print(result) """
+    
